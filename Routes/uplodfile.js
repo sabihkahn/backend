@@ -5,25 +5,33 @@ import fs from "fs";
 import usermodel from '../models/usermodel.js'
 const router = express.Router();
 
-
-router.post('/uploadfile/:id', (req, res) => {
-    const form = formidable({ multiples: false, uploadDir: './storage', keepExtensions: true });
-    form.parse(req, async (err, fields, files) => {
-        if (err || !files.file) {
+router.use(express.json());
+router.use(express.urlencoded({ extended: true }));
+router.post('/uploadfile/:id', async(req, res) => {
+   formidable().parse(req, async (err, fields, files) => {
+        if (err) {
             return res.status(500).send({
+
                 success: false,
-                message: 'File upload failed',
-                error: err.message
+                message: 'Error parsing the file',
+                error: err
             });
         }
-        const file = files.file;
-        try {
+        const file = files.myfile;
+         try {
             const result = await cloudinary.uploader.upload(file.filepath, {
                 resource_type: 'auto',
-                folder: 'storage'
             });
 
-            fs.unlinkSync(file.filepath)
+          console.log(result);
+            // Check if the user exists
+            const user = await usermodel.findById(req.params.id);
+            if (!user) {
+                return res.status(404).send({
+                    success: false,
+                    message: 'User not found'
+                });
+            }
             const id = req.params.id
             const userdatapush = await usermodel.findByIdAndUpdate(id, {
                 $push: {
@@ -42,7 +50,7 @@ router.post('/uploadfile/:id', (req, res) => {
                 success: true,
                 message: 'File uploaded successfully',
                 data: {
-                    FILE_NAME: result.originalFilename,
+                    FILE_NAME: result.original_filename,
                     FILE_SIZE: result.bytes,
                     FILE_TYPE: result.format,
                     type: result.resource_type + '/' + result.format,
@@ -56,13 +64,17 @@ router.post('/uploadfile/:id', (req, res) => {
             console.log(error);
             return res.status(500).send({
                 success: false,
-                message: 'File upload failed',
-                error: error.message
+                message: 'File upload failed h',
+                error: error
             });
         }
-    })
 
+    })
 })
+
+
+
+
 
 router.get('/getfile/:id', async (req, res) => {
     try {
@@ -84,7 +96,7 @@ router.get('/getfile/:id', async (req, res) => {
         res.status(500).send({
             success: false,
             message: 'Error retrieving files',
-            error: error.message
+            error: error
         });
     }
 
@@ -122,7 +134,9 @@ router.delete('/deletefile/:id/:fileId', async (req, res) => {
         res.status(500).send({
             success: false,
             message: 'Error deleting file',
-            error: error.message
+            error: error
         });
     }
 })
+
+export default router;
