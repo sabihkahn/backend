@@ -7,23 +7,24 @@ const router = express.Router();
 
 router.use(express.json());
 router.use(express.urlencoded({ extended: true }));
-router.post('/uploadfile/:id', async(req, res) => {
-   formidable().parse(req, async (err, fields, files) => {
+router.post('/uploadfile/:id', async (req, res) => {
+    formidable().parse(req, async (err, fields, files) => {
         if (err) {
             return res.status(500).send({
 
                 success: false,
+                files,
                 message: 'Error parsing the file',
-                error: err
             });
         }
-        const file = files.myfile;
-         try {
-            const result = await cloudinary.uploader.upload(file.filepath, {
-                resource_type: 'auto',
+        const { filepath } = files.file[0];
+        console.log(filepath);
+        try {
+            const result = await cloudinary.uploader.upload(filepath, {
+                resource_type: 'raw',
             });
 
-          console.log(result);
+            console.log(result);
             // Check if the user exists
             const user = await usermodel.findById(req.params.id);
             if (!user) {
@@ -45,6 +46,7 @@ router.post('/uploadfile/:id', async(req, res) => {
                     }
                 }
             }, { new: true });
+            const mb = Math.floor(result.bytes / 1024 / 1024) + 'mb'
 
             res.status(200).send({
                 success: true,
@@ -54,7 +56,7 @@ router.post('/uploadfile/:id', async(req, res) => {
                     FILE_SIZE: result.bytes,
                     FILE_TYPE: result.format,
                     type: result.resource_type + '/' + result.format,
-                    size: result.bytes,
+                    size: mb,
                     url: result.secure_url,
                     public_id: result.public_id
                 }
@@ -65,16 +67,13 @@ router.post('/uploadfile/:id', async(req, res) => {
             return res.status(500).send({
                 success: false,
                 message: 'File upload failed h',
+                files,
                 error: error
             });
         }
 
     })
 })
-
-
-
-
 
 router.get('/getfile/:id', async (req, res) => {
     try {
@@ -102,10 +101,10 @@ router.get('/getfile/:id', async (req, res) => {
 
 })
 
-router.delete('/deletefile/:id/:fileId', async (req, res) => {
+router.delete('/deletefile/:id/:public_id', async (req, res) => {
     try {
 
-        const { id, fileId } = req.params;
+        const { id, public_id } = req.params;
         const user = await usermodel.findById(id);
         if (!user) {
             return res.status(404).send({
@@ -113,15 +112,16 @@ router.delete('/deletefile/:id/:fileId', async (req, res) => {
                 message: 'User not found'
             });
         }
-        const file = user.files.id(fileId);
+
+        const file = user.files.find(file => file.public_id === public_id);
         if (!file) {
             return res.status(404).send({
                 success: false,
                 message: 'File not found'
             });
         }
-        const cloudinaryResponse = await cloudinary.uploader.destroy(file.public_id, {
-            resource_type: 'auto'
+        const cloudinaryResponse = await cloudinary.uploader.destroy(file, {
+            resource_type: 'raw'
         });
         res.status(200).send({
             success: true,

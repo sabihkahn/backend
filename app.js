@@ -20,10 +20,11 @@ app.use('/', uplodfile)
 app.use(cookieParser())
 
 app.get('/', async (req, res) => {
-    res.send('hello from home')
+    res.send('hello from home finaly bro running')
 })
 
 
-app.listen(3000, () => {
-    console.log('server successfully run')
-})
+// app.listen(3000, () => {
+//     console.log('server successfully run')
+// })
+export default app
