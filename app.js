@@ -11,9 +11,10 @@ connectedDB()
 
 const app = express()
 //middelware
-app.use(express.json())
+
 app.use(cors())
-app.use(express.urlencoded({ extended: true }))
+app.use(express.json()); // ✅ for JSON body
+app.use(express.urlencoded({ extended: true })); 
 app.use('/user', userouter)
 app.use('/', uplodfile)
 

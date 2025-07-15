@@ -8,79 +8,72 @@ const router = express.Router();
 router.use(express.json());
 router.use(express.urlencoded({ extended: true }));
 router.post('/uploadfile/:id', async (req, res) => {
-  const form = formidable({
-    uploadDir: '/tmp',           // ✅ Safe for Railway
-    keepExtensions: true         // ✅ Keeps file extension (e.g. .pdf, .jpg)
-  });
+    formidable().parse(req, async (err, fields, files) => {
+        if (err) {
+            return res.status(500).send({
 
-  form.parse(req, async (err, fields, files) => {
-    if (err) {
-      console.error("Form parsing error:", err);
-      return res.status(500).send({
-        success: false,
-        message: 'Error parsing the file',
-        error: err.message
-      });
-    }
-
-    try {
-      const file = files.file[0]; // may be `files.file` based on your version
-      const { filepath } = file;
-      console.log("Uploading from:", filepath);
-
-      const result = await cloudinary.uploader.upload(filepath, {
-        resource_type: 'raw', // for all types: pdf, zip, etc.
-      });
-
-      // Check if user exists
-      const user = await usermodel.findById(req.params.id);
-      if (!user) {
-        return res.status(404).send({
-          success: false,
-          message: 'User not found'
-        });
-      }
-
-      // Update user's files
-      const updatedUser = await usermodel.findByIdAndUpdate(req.params.id, {
-        $push: {
-          files: {
-            name: result.original_filename,
-            size: result.bytes,
-            type: result.format,
-            url: result.secure_url,
-            public_id: result.public_id,
-            uploadedAt: new Date()
-          }
+                success: false,
+                files,
+                message: 'Error parsing the file',
+            });
         }
-      }, { new: true });
+        const { filepath } = files.file[0];
+        console.log(filepath);
+        try {
+            const result = await cloudinary.uploader.upload(filepath, {
+                resource_type: 'raw',
+            });
 
-      const mb = Math.floor(result.bytes / 1024 / 1024) + 'mb';
+            console.log(result);
+            // Check if the user exists
+            const user = await usermodel.findById(req.params.id);
+            if (!user) {
+                return res.status(404).send({
+                    success: false,
+                    message: 'User not found'
+                });
+            }
+            const id = req.params.id
+            const userdatapush = await usermodel.findByIdAndUpdate(id, {
+                $push: {
+                    files: {
+                        name: result.original_filename,
+                        size: result.bytes,
+                        type: result.format,
+                        url: result.secure_url,
+                        public_id: result.public_id,
+                        uploadedAt: new Date()
+                    }
+                }
+            }, { new: true });
+            const mb = Math.floor(result.bytes / 1024 / 1024) + 'mb'
 
-      return res.status(200).send({
-        success: true,
-        message: 'File uploaded successfully',
-        data: {
-          FILE_NAME: result.original_filename,
-          FILE_SIZE: result.bytes,
-          FILE_TYPE: result.format,
-          type: result.resource_type + '/' + result.format,
-          size: mb,
-          url: result.secure_url,
-          public_id: result.public_id
+            res.status(200).send({
+                success: true,
+                message: 'File uploaded successfully',
+                data: {
+                    FILE_NAME: result.original_filename,
+                    FILE_SIZE: result.bytes,
+                    FILE_TYPE: result.format,
+                    type: result.resource_type + '/' + result.format,
+                    size: mb,
+                    url: result.secure_url,
+                    public_id: result.public_id
+                }
+            })
+
+        } catch (error) {
+            console.log(error);
+            return res.status(500).send({
+                success: false,
+                message: 'File upload failed h',
+                files,
+                error: error
+            });
         }
-      });
 
-    } catch (error) {
-      console.error("Upload or DB error:", error);
-      return res.status(500).send({
-        success: false,
-        message: 'File upload failed',
-        error: error.message
-      });
-    }
-  });
-});
+    })
+})
 
 router.get('/getfile/:id', async (req, res) => {
     try {
@@ -119,7 +112,6 @@ router.delete('/deletefile/:id/:public_id', async (req, res) => {
                 message: 'User not found'
             });
         }
-
         const file = user.files.find(file => file.public_id === public_id);
         if (!file) {
             return res.status(404).send({
@@ -130,6 +122,12 @@ router.delete('/deletefile/:id/:public_id', async (req, res) => {
         const cloudinaryResponse = await cloudinary.uploader.destroy(file, {
             resource_type: 'raw'
         });
+
+        
+        user.files.pull({ public_id: public_id });
+             await user.save();
+
+
         res.status(200).send({
             success: true,
             message: 'File deleted successfully',
