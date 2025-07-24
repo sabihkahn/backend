@@ -25,8 +25,8 @@ app.get('/', async (req, res) => {
 })
 
 
-app.listen(3000, () => {
-    console.log('server successfully run')
-})
+// app.listen(3000, () => {
+//     console.log('server successfully run')
+// })
 
 export default app
